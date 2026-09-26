@@ -33,6 +33,13 @@ if os.path.exists(frontend_dir):
     def serve_index():
         return FileResponse(os.path.join(frontend_dir, "index.html"))
 
+    @app.get("/favicon.ico")
+    def serve_favicon():
+        favicon_ico = os.path.join(frontend_dir, "favicon.ico")
+        if os.path.exists(favicon_ico):
+            return FileResponse(favicon_ico)
+        return FileResponse(os.path.join(frontend_dir, "favicon.png"))
+
 
 if __name__ == "__main__":
     import uvicorn
