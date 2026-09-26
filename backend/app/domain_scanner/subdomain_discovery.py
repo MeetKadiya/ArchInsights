@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import socket
-from typing import List, Set
+from typing import List, Set, Optional
 import httpx
 
 from app.domain_scanner.models import SubdomainInfo
