@@ -56,6 +56,19 @@ const el = {
     btnResetView: document.getElementById('btnResetView'),
     btnFocusHotspots: document.getElementById('btnFocusHotspots'),
 
+    // Responsive Mobile Controls & Drawers
+    btnToggleControls: document.getElementById('btnToggleControls'),
+    btnCloseControls: document.getElementById('btnCloseControls'),
+    leftControls: document.getElementById('leftControls'),
+    drawerBackdrop: document.getElementById('drawerBackdrop'),
+
+    // Floating Canvas Controls
+    canvasFloatingControls: document.getElementById('canvasFloatingControls'),
+    btnFloatZoomIn: document.getElementById('btnFloatZoomIn'),
+    btnFloatZoomOut: document.getElementById('btnFloatZoomOut'),
+    btnFloatReset: document.getElementById('btnFloatReset'),
+    btnFloatHotspots: document.getElementById('btnFloatHotspots'),
+
     // AI Copilot Panel
     btnAiCopilot: document.getElementById('btnAiCopilot'),
     aiCopilotPanel: document.getElementById('aiCopilotPanel'),
@@ -198,15 +211,67 @@ function bindEvents() {
         });
     }
 
+    // Left Controls Mobile Drawer toggle
+    if (el.btnToggleControls && el.leftControls) {
+        el.btnToggleControls.addEventListener('click', () => {
+            const isOpen = el.leftControls.classList.toggle('open');
+            el.btnToggleControls.classList.toggle('active', isOpen);
+            if (isOpen) {
+                if (window.innerWidth <= 900) {
+                    el.aiCopilotPanel.classList.remove('open');
+                    el.btnAiCopilot.classList.remove('active');
+                    if (el.drawerBackdrop) el.drawerBackdrop.classList.add('active');
+                }
+            } else {
+                if (el.drawerBackdrop && !el.aiCopilotPanel.classList.contains('open')) {
+                    el.drawerBackdrop.classList.remove('active');
+                }
+            }
+        });
+    }
+
+    if (el.btnCloseControls && el.leftControls) {
+        el.btnCloseControls.addEventListener('click', () => {
+            el.leftControls.classList.remove('open');
+            if (el.btnToggleControls) el.btnToggleControls.classList.remove('active');
+            if (el.drawerBackdrop && !el.aiCopilotPanel.classList.contains('open')) {
+                el.drawerBackdrop.classList.remove('active');
+            }
+        });
+    }
+
+    // Backdrop click closes all mobile drawers
+    if (el.drawerBackdrop) {
+        el.drawerBackdrop.addEventListener('click', () => {
+            if (el.leftControls) el.leftControls.classList.remove('open');
+            if (el.btnToggleControls) el.btnToggleControls.classList.remove('active');
+            el.aiCopilotPanel.classList.remove('open');
+            el.btnAiCopilot.classList.remove('active');
+            el.drawerBackdrop.classList.remove('active');
+        });
+    }
+
     // AI Copilot toggle
     el.btnAiCopilot.addEventListener('click', () => {
         const open = el.aiCopilotPanel.classList.toggle('open');
         el.btnAiCopilot.classList.toggle('active', open);
+        if (open && window.innerWidth <= 900) {
+            if (el.leftControls) el.leftControls.classList.remove('open');
+            if (el.btnToggleControls) el.btnToggleControls.classList.remove('active');
+            if (el.drawerBackdrop) el.drawerBackdrop.classList.add('active');
+        } else if (!open) {
+            if (el.drawerBackdrop && (!el.leftControls || !el.leftControls.classList.contains('open'))) {
+                el.drawerBackdrop.classList.remove('active');
+            }
+        }
     });
 
     el.btnCloseCopilot.addEventListener('click', () => {
         el.aiCopilotPanel.classList.remove('open');
         el.btnAiCopilot.classList.remove('active');
+        if (el.drawerBackdrop && (!el.leftControls || !el.leftControls.classList.contains('open'))) {
+            el.drawerBackdrop.classList.remove('active');
+        }
     });
 
     // Zoom
@@ -214,8 +279,21 @@ function bindEvents() {
     el.btnZoomOut.addEventListener('click', () => state.svg.transition().duration(300).call(state.zoom.scaleBy, 0.75));
     el.btnResetView.addEventListener('click', resetZoom);
 
+    // Floating Canvas Zoom Controls
+    if (el.btnFloatZoomIn)  el.btnFloatZoomIn.addEventListener('click', () => state.svg.transition().duration(300).call(state.zoom.scaleBy, 1.35));
+    if (el.btnFloatZoomOut) el.btnFloatZoomOut.addEventListener('click', () => state.svg.transition().duration(300).call(state.zoom.scaleBy, 0.75));
+    if (el.btnFloatReset)   el.btnFloatReset.addEventListener('click', resetZoom);
+    if (el.btnFloatHotspots) el.btnFloatHotspots.addEventListener('click', toggleHotspotFocus);
+
     // Focus Hotspots toggle
     el.btnFocusHotspots.addEventListener('click', toggleHotspotFocus);
+
+    // Responsive Window Resize & Orientation Handling
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(handleWindowResize, 150);
+    });
 
     // Search filter
     el.inputSearch.addEventListener('input', (e) => {
@@ -303,21 +381,58 @@ function bindCopilotTabs() {
 }
 
 // Metric info tips hover
+// Metric info tips hover & mobile tap
 function bindInfoTips() {
     document.querySelectorAll('.info-tip[data-tip]').forEach(tip => {
-        tip.addEventListener('mouseenter', (e) => {
+        const show = (e) => {
             el.metricTooltip.innerHTML = tip.getAttribute('data-tip');
             el.metricTooltip.style.display = 'block';
             positionMetricTooltip(e);
-        });
+        };
+        const hide = () => { el.metricTooltip.style.display = 'none'; };
+
+        tip.addEventListener('mouseenter', show);
         tip.addEventListener('mousemove', positionMetricTooltip);
-        tip.addEventListener('mouseleave', () => { el.metricTooltip.style.display = 'none'; });
+        tip.addEventListener('mouseleave', hide);
+
+        // Mobile touch tap support
+        tip.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (el.metricTooltip.style.display === 'block') {
+                hide();
+            } else {
+                show(e);
+            }
+        });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.info-tip')) {
+            el.metricTooltip.style.display = 'none';
+        }
     });
 }
 
 function positionMetricTooltip(e) {
-    el.metricTooltip.style.left = `${e.clientX + 12}px`;
-    el.metricTooltip.style.top  = `${e.clientY + 12}px`;
+    const tipWidth = el.metricTooltip.offsetWidth || 220;
+    const tipHeight = el.metricTooltip.offsetHeight || 60;
+    const margin = 10;
+
+    const clientX = e.clientX !== undefined ? e.clientX : (e.touches && e.touches[0] ? e.touches[0].clientX : window.innerWidth / 2);
+    const clientY = e.clientY !== undefined ? e.clientY : (e.touches && e.touches[0] ? e.touches[0].clientY : 60);
+
+    let left = clientX + 12;
+    let top = clientY + 12;
+
+    if (left + tipWidth > window.innerWidth - margin) {
+        left = Math.max(margin, window.innerWidth - tipWidth - margin);
+    }
+    if (top + tipHeight > window.innerHeight - margin) {
+        top = Math.max(margin, clientY - tipHeight - 12);
+    }
+
+    el.metricTooltip.style.left = `${left}px`;
+    el.metricTooltip.style.top  = `${top}px`;
 }
 
 // ===================== Health Check & Auto Load =====================
@@ -960,8 +1075,25 @@ function showNodeTooltip(event, d) {
 }
 
 function moveTooltip(event) {
-    el.tooltip.style.left = `${event.pageX + 14}px`;
-    el.tooltip.style.top  = `${event.pageY + 14}px`;
+    const tooltipWidth = el.tooltip.offsetWidth || 260;
+    const tooltipHeight = el.tooltip.offsetHeight || 130;
+    const margin = 12;
+
+    const pageX = event.pageX !== undefined ? event.pageX : (event.touches && event.touches[0] ? event.touches[0].pageX : window.innerWidth / 2);
+    const pageY = event.pageY !== undefined ? event.pageY : (event.touches && event.touches[0] ? event.touches[0].pageY : window.innerHeight / 2);
+
+    let left = pageX + 14;
+    let top = pageY + 14;
+
+    if (left + tooltipWidth > window.innerWidth - margin) {
+        left = Math.max(margin, pageX - tooltipWidth - 14);
+    }
+    if (top + tooltipHeight > window.innerHeight - margin) {
+        top = Math.max(margin, pageY - tooltipHeight - 14);
+    }
+
+    el.tooltip.style.left = `${left}px`;
+    el.tooltip.style.top  = `${top}px`;
 }
 
 function hideTooltip() { el.tooltip.style.display = 'none'; }
@@ -982,10 +1114,20 @@ function highlightSelectedNode(nodeId) {
 // ===================== Hotspot Focus Mode =====================
 function toggleHotspotFocus() {
     state.hotspotMode = !state.hotspotMode;
-    el.btnFocusHotspots.style.background = state.hotspotMode
-        ? 'rgba(239,68,68,0.2)' : '';
-    el.btnFocusHotspots.style.borderColor = state.hotspotMode
-        ? 'var(--color-red)' : '';
+    const bg = state.hotspotMode ? 'rgba(239,68,68,0.2)' : '';
+    const border = state.hotspotMode ? 'var(--color-red)' : '';
+    const color = state.hotspotMode ? 'var(--color-red)' : '';
+
+    if (el.btnFocusHotspots) {
+        el.btnFocusHotspots.style.background = bg;
+        el.btnFocusHotspots.style.borderColor = border;
+        el.btnFocusHotspots.style.color = color;
+    }
+    if (el.btnFloatHotspots) {
+        el.btnFloatHotspots.style.background = bg;
+        el.btnFloatHotspots.style.borderColor = border;
+        el.btnFloatHotspots.style.color = color;
+    }
     applyFilters();
 }
 
@@ -1089,4 +1231,13 @@ function showToast(message, duration = 3500) {
     toast.classList.add('show');
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(() => toast.classList.remove('show'), duration);
+}
+
+// Window resize & device orientation handler
+function handleWindowResize() {
+    if (!state.simulation || !state.nodes || state.nodes.length === 0) return;
+    const width  = el.svg.clientWidth  || window.innerWidth;
+    const height = el.svg.clientHeight || window.innerHeight;
+    state.simulation.force('center', d3.forceCenter(width / 2, height / 2));
+    state.simulation.alpha(0.15).restart();
 }

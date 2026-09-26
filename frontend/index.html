@@ -22,6 +22,9 @@
         <!-- Top Navbar -->
         <header class="navbar">
             <div class="brand">
+                <button class="btn btn-icon btn-ghost mobile-menu-btn" id="btnToggleControls" title="Filters &amp; Legend" aria-label="Toggle Filters &amp; Legend">
+                    <ion-icon name="options-outline"></ion-icon>
+                </button>
                 <div class="logo-icon">
                     <img src="/static/favicon.png" alt="ArchInsights Logo" class="brand-logo-img">
                 </div>
@@ -102,19 +105,19 @@
 
                 <button class="btn btn-ghost" id="btnAiCopilot" title="Open AI Architectural Copilot">
                     <ion-icon name="sparkles-outline"></ion-icon>
-                    AI Copilot
+                    <span class="btn-text">AI Copilot</span>
                 </button>
-                <button class="btn btn-secondary" id="btnScanDomainModal" title="Recon & Map External Domain Architecture">
+                <button class="btn btn-secondary" id="btnScanDomainModal" title="Recon &amp; Map External Domain Architecture">
                     <ion-icon name="globe-outline"></ion-icon>
-                    Scan Domain
+                    <span class="btn-text">Scan Domain</span>
                 </button>
                 <button class="btn btn-secondary" id="btnSampleCodebase" title="Load Sample Fixture Repo">
                     <ion-icon name="cube-outline"></ion-icon>
-                    Load Sample
+                    <span class="btn-text">Load Sample</span>
                 </button>
-                <button class="btn btn-primary" id="btnScanModal">
+                <button class="btn btn-primary" id="btnScanModal" title="Scan Codebase">
                     <ion-icon name="scan-outline"></ion-icon>
-                    Scan Repo
+                    <span class="btn-text">Scan Repo</span>
                 </button>
             </div>
         </header>
@@ -122,7 +125,14 @@
         <!-- Main Workspace -->
         <main class="workspace">
             <!-- Left Toolbar & Filters -->
-            <aside class="left-controls glass-panel">
+            <aside class="left-controls glass-panel" id="leftControls">
+                <div class="left-controls-header">
+                    <div class="controls-header-title">
+                        <ion-icon name="options-outline"></ion-icon>
+                        <span>Filters &amp; Legend</span>
+                    </div>
+                    <button class="btn-close" id="btnCloseControls" aria-label="Close filters panel">&times;</button>
+                </div>
                 <div class="control-section">
                     <label class="control-label">Search Module</label>
                     <div class="search-box">
@@ -249,6 +259,13 @@
                         </button>
                     </div>
                 </div>
+                <!-- Floating Mobile / Quick Canvas Controls -->
+                <div class="canvas-floating-controls" id="canvasFloatingControls">
+                    <button class="btn btn-icon" id="btnFloatZoomIn" title="Zoom In" aria-label="Zoom In"><ion-icon name="add-outline"></ion-icon></button>
+                    <button class="btn btn-icon" id="btnFloatZoomOut" title="Zoom Out" aria-label="Zoom Out"><ion-icon name="remove-outline"></ion-icon></button>
+                    <button class="btn btn-icon" id="btnFloatReset" title="Reset View" aria-label="Reset View"><ion-icon name="scan-outline"></ion-icon></button>
+                    <button class="btn btn-icon btn-focus-hotspots" id="btnFloatHotspots" title="Highlight Smell Hotspots" aria-label="Highlight Smell Hotspots"><ion-icon name="locate-outline"></ion-icon></button>
+                </div>
                 <!-- Node Tooltip -->
                 <div class="tooltip" id="graphTooltip"></div>
             </div>
@@ -258,14 +275,14 @@
                 <div class="drawer-header">
                     <div class="drawer-header-left">
                         <span class="ai-badge"><ion-icon name="sparkles"></ion-icon> AI</span>
-                        <h3 id="copilotPanelTitle">Architectural Copilot</h3>
+                        <h3 id="copilotPanelTitle">Copilot</h3>
                     </div>
                     <div class="drawer-tabs" id="copilotTabs">
-                        <button class="drawer-tab active" data-tab="summary"><ion-icon name="document-text-outline"></ion-icon> Summary</button>
-                        <button class="drawer-tab" data-tab="actions"><ion-icon name="list-outline"></ion-icon> Action Plan</button>
-                        <button class="drawer-tab" data-tab="inspector"><ion-icon name="search-outline"></ion-icon> Inspector</button>
+                        <button class="drawer-tab active" data-tab="summary"><ion-icon name="document-text-outline"></ion-icon> <span class="tab-label">Summary</span></button>
+                        <button class="drawer-tab" data-tab="actions"><ion-icon name="list-outline"></ion-icon> <span class="tab-label">Action Plan</span></button>
+                        <button class="drawer-tab" data-tab="inspector"><ion-icon name="search-outline"></ion-icon> <span class="tab-label">Inspector</span></button>
                     </div>
-                    <button class="btn-close" id="btnCloseCopilot">&times;</button>
+                    <button class="btn-close" id="btnCloseCopilot" aria-label="Close Copilot Panel">&times;</button>
                 </div>
 
                 <div class="drawer-content" id="copilotBody">
@@ -391,6 +408,9 @@
 
         <!-- Global Tooltip for metric explanations -->
         <div class="metric-tooltip" id="metricTooltip"></div>
+
+        <!-- Backdrop overlay for mobile drawers -->
+        <div class="drawer-backdrop" id="drawerBackdrop"></div>
     </div>
 
     <script src="/static/app.js"></script>
