@@ -11,6 +11,9 @@ from app.analysis.anti_patterns import AntiPatternDetector, AntiPatternReport
 from app.analysis.metrics_engine import MetricsEngine, ArchitecturalDebtSummary
 from app.analysis.refactoring import RefactoringGenerator, RefactoringPlan
 from app.analysis.ai_copilot import AiCopilotEngine, CodebaseAiSummary, NodeAiExplanation
+from app.domain_scanner.recon_orchestrator import DomainReconOrchestrator
+from app.domain_scanner.topology_mapper import DomainTopologyMapper
+from app.domain_scanner.models import DomainReconResult
 
 router = APIRouter()
 
@@ -22,6 +25,8 @@ class AppState:
     refactoring_plans: List[RefactoringPlan] = []
     ai_summary: Optional[CodebaseAiSummary] = None
     neo4j_client: Neo4jClient = Neo4jClient()
+    latest_domain_recon: Optional[DomainReconResult] = None
+    scan_type: str = "codebase"  # "codebase" or "domain"
 
 state = AppState()
 ast_engine = AstEngine()
@@ -31,6 +36,11 @@ class ScanRequest(BaseModel):
     repo_path: str
     repo_name: Optional[str] = None
     sync_to_neo4j: bool = True
+
+
+class DomainScanRequest(BaseModel):
+    domain: str
+    sync_to_neo4j: bool = False
 
 
 @router.get("/health")
@@ -72,6 +82,7 @@ def scan_codebase(req: ScanRequest):
         graph = ast_engine.analyze_repository(repo_path=target_path, repo_name=inferred_name)
 
     state.current_graph = graph
+    state.scan_type = "codebase"
 
     # 2. Anti-pattern detection
     antipatterns = AntiPatternDetector.detect_all(graph)
@@ -93,7 +104,7 @@ def scan_codebase(req: ScanRequest):
         refactoring_plans=refactoring_plans,
     )
 
-    # 5. Optional Neo4j Sync
+    # 6. Optional Neo4j Sync
     neo4j_synced = False
     if req.sync_to_neo4j:
         if not state.neo4j_client.is_connected():
@@ -118,6 +129,78 @@ def scan_codebase(req: ScanRequest):
     }
 
 
+@router.post("/domain/scan")
+async def scan_domain(req: DomainScanRequest):
+    """
+    Performs full automated reconnaissance, fingerprinting, and architectural
+    topology mapping for an external domain.
+    """
+    target = req.domain.strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="Domain cannot be empty.")
+
+    try:
+        orchestrator = DomainReconOrchestrator()
+        recon = await orchestrator.scan_domain(target)
+        graph, antipatterns, debt_summary, refactoring_plans, ai_summary = (
+            DomainTopologyMapper.generate_topology(recon)
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Domain scan failed: {str(e)}")
+
+    state.current_graph = graph
+    state.antipatterns = antipatterns
+    state.debt_summary = debt_summary
+    state.refactoring_plans = refactoring_plans
+    state.ai_summary = ai_summary
+    state.latest_domain_recon = recon
+    state.scan_type = "domain"
+
+    # Optional Neo4j Sync
+    neo4j_synced = False
+    if req.sync_to_neo4j:
+        if not state.neo4j_client.is_connected():
+            state.neo4j_client.connect()
+
+        if state.neo4j_client.is_connected():
+            try:
+                state.neo4j_client.ingest_codebase_graph(graph, clear_existing=True)
+                neo4j_synced = True
+            except Exception as e:
+                print(f"[API] Error syncing domain graph to Neo4j: {e}")
+
+    return {
+        "domain": recon.domain,
+        "canonical_url": recon.canonical_url,
+        "total_nodes": len(graph.nodes),
+        "total_edges": len(graph.edges),
+        "technologies_detected": [t.name for t in recon.technologies],
+        "subdomains_found": len(recon.subdomains),
+        "open_ports": [p.port for p in recon.open_ports],
+        "antipatterns_found": len(antipatterns),
+        "debt_score": debt_summary.debt_score,
+        "debt_level": debt_summary.debt_level,
+        "neo4j_synced": neo4j_synced,
+    }
+
+
+@router.get("/domain/report")
+def get_domain_report():
+    """
+    Returns full reconnaissance and architectural analysis for the latest scanned domain.
+    """
+    if not state.latest_domain_recon:
+        raise HTTPException(status_code=404, detail="No domain has been scanned yet.")
+
+    return {
+        "recon": state.latest_domain_recon,
+        "debt_summary": state.debt_summary,
+        "antipatterns": state.antipatterns,
+        "refactorings": state.refactoring_plans,
+        "ai_summary": state.ai_summary,
+    }
+
+
 @router.get("/graph")
 def get_graph_data(level: str = "module"):
     """
@@ -136,10 +219,13 @@ def get_graph_data(level: str = "module"):
             for nid in ap.metrics.get("cycle_path", []):
                 cycle_node_ids.add(nid)
 
-    # Filter nodes based on level
-    allowed_labels = {"Module", "Package"} if level == "module" else {"Module", "Package", "Class", "Function"}
-    if level == "package":
-        allowed_labels = {"Package"}
+    # Filter nodes based on level and scan type
+    if state.scan_type == "domain":
+        allowed_labels = {"Edge", "Gateway", "Service", "Infrastructure", "Database", "ThirdParty", "Module", "Package"}
+    else:
+        allowed_labels = {"Module", "Package"} if level == "module" else {"Module", "Package", "Class", "Function"}
+        if level == "package":
+            allowed_labels = {"Package"}
 
     filtered_nodes = []
     node_id_set = set()
@@ -157,6 +243,8 @@ def get_graph_data(level: str = "module"):
                     "maintainability": n.properties.get("maintainability_index", 80.0),
                     "is_in_cycle": n.id in cycle_node_ids,
                     "file_path": n.properties.get("file_path", ""),
+                    "tier": n.properties.get("tier", ""),
+                    "category": n.properties.get("category", ""),
                 }
             )
 

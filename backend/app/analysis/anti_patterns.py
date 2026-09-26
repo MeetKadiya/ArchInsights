@@ -26,6 +26,8 @@ class AntiPatternDetector:
         reports.extend(cls.detect_circular_dependencies(graph))
         reports.extend(cls.detect_god_classes(graph))
         reports.extend(cls.detect_tight_coupling(graph))
+        reports.extend(cls.detect_shotgun_surgery(graph))
+        reports.extend(cls.detect_orphan_modules(graph))
         return reports
 
     @classmethod
@@ -194,5 +196,108 @@ class AntiPatternDetector:
                         refactoring_suggestion="Introduce an interface boundary or event-driven pub/sub messaging to decouple this module from direct dependencies.",
                     )
                 )
+
+        return reports
+
+    @classmethod
+    def detect_shotgun_surgery(cls, graph: CodebaseGraph) -> List[AntiPatternReport]:
+        """
+        Identifies modules with high efferent coupling (Fan-Out >= 6) where modifications
+        to external contracts can cause cascading ripple effects across multiple downstream consumers.
+        """
+        reports: List[AntiPatternReport] = []
+        fan_out: Dict[str, Set[str]] = {}
+        module_names: Dict[str, str] = {}
+
+        for node in graph.nodes:
+            if node.label == "Module":
+                fan_out[node.id] = set()
+                module_names[node.id] = node.name
+
+        for edge in graph.edges:
+            if edge.type == "IMPORTS" and edge.source in fan_out and edge.target in fan_out:
+                if edge.source != edge.target:
+                    fan_out[edge.source].add(edge.target)
+
+        for mod_id, targets in fan_out.items():
+            fo = len(targets)
+            if fo >= 6:
+                severity = "HIGH" if fo >= 10 else "MEDIUM"
+                name = module_names.get(mod_id, mod_id)
+                reports.append(
+                    AntiPatternReport(
+                        id=f"shotgun_surgery::{mod_id}",
+                        type="SHOTGUN_SURGERY",
+                        severity=severity,
+                        entity_id=mod_id,
+                        entity_name=name,
+                        description=(
+                            f"Module '{name}' exhibits Shotgun Surgery / High Fan-Out smell by depending "
+                            f"on {fo} distinct modules. Modifying external contracts will likely trigger cascading code edits."
+                        ),
+                        metrics={"fan_out": fo, "target_modules": list(targets)[:8]},
+                        refactoring_suggestion=(
+                            "Apply Facade Pattern or consolidate fine-grained helper calls into cohesive domain services "
+                            "to reduce outbound dependencies."
+                        ),
+                    )
+                )
+
+        return reports
+
+    @classmethod
+    def detect_orphan_modules(cls, graph: CodebaseGraph) -> List[AntiPatternReport]:
+        """
+        Identifies isolated 'island' modules that have 0 incoming and 0 outgoing
+        dependency edges, indicating dead code or abandoned experiments.
+        """
+        reports: List[AntiPatternReport] = []
+        incoming: Dict[str, int] = {}
+        outgoing: Dict[str, int] = {}
+        module_nodes: Dict[str, Any] = {}
+
+        for node in graph.nodes:
+            if node.label == "Module":
+                incoming[node.id] = 0
+                outgoing[node.id] = 0
+                module_nodes[node.id] = node
+
+        # Only evaluate if there are at least 5 modules in the codebase
+        if len(module_nodes) < 5:
+            return reports
+
+        for edge in graph.edges:
+            if edge.type == "IMPORTS":
+                if edge.source in outgoing:
+                    outgoing[edge.source] += 1
+                if edge.target in incoming:
+                    incoming[edge.target] += 1
+
+        for mod_id, node in module_nodes.items():
+            name_lower = node.name.lower()
+            if any(k in name_lower for k in ("main", "index", "app", "__init__", "setup", "run")):
+                continue
+
+            if incoming[mod_id] == 0 and outgoing[mod_id] == 0:
+                loc = node.properties.get("loc", 0)
+                if loc > 15:
+                    reports.append(
+                        AntiPatternReport(
+                            id=f"orphan_module::{mod_id}",
+                            type="ORPHAN_MODULE",
+                            severity="LOW",
+                            entity_id=mod_id,
+                            entity_name=node.name,
+                            description=(
+                                f"Module '{node.name}' has 0 incoming callers and 0 outgoing dependencies "
+                                f"({loc} lines of code). It appears to be an abandoned or orphaned module."
+                            ),
+                            metrics={"loc": loc, "incoming_calls": 0, "outgoing_calls": 0},
+                            refactoring_suggestion=(
+                                "Audit whether this module is dead code. Integrate into the system or remove to reduce "
+                                "code bloat and maintenance overhead."
+                            ),
+                        )
+                    )
 
         return reports

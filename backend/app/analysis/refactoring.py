@@ -31,6 +31,10 @@ class RefactoringGenerator:
                 plans.append(cls._plan_for_god_class(report))
             elif report.type == "TIGHT_COUPLING":
                 plans.append(cls._plan_for_tight_coupling(report))
+            elif report.type == "SHOTGUN_SURGERY":
+                plans.append(cls._plan_for_shotgun_surgery(report))
+            elif report.type == "ORPHAN_MODULE":
+                plans.append(cls._plan_for_orphan_module(report))
 
         return plans
 
@@ -150,6 +154,56 @@ event_bus.publish('order.created', {{'order_id': 123}})
                 "2. Replace direct method invocations with asynchronous events or publisher-subscriber channels.",
                 "3. Introduce interface abstraction layers for incoming consumers.",
                 "4. Measure reduction in Afferent/Efferent coupling.",
+            ],
+            code_diff_preview=diff,
+        )
+
+    @classmethod
+    def _plan_for_shotgun_surgery(cls, report: AntiPatternReport) -> RefactoringPlan:
+        fo = report.metrics.get("fan_out", 6)
+        diff = f"""// --- BEFORE: High Fan-Out '{report.entity_name}' imports {fo} modules ---
+// import {{ A }} from './a';
+// import {{ B }} from './b';
+// import {{ C }} from './c';
+// ...
+
+// --- AFTER: Aggregate through a Cohesive Facade ---
+// import {{ UnifiedDomainFacade }} from './domain_facade';
+// UnifiedDomainFacade.executeWorkflow();
+"""
+        return RefactoringPlan(
+            id=f"plan_shotgun_{report.entity_id}",
+            target_id=report.entity_id,
+            target_name=report.entity_name,
+            title=f"Consolidate Outbound Coupling in '{report.entity_name}'",
+            pattern="Facade & Parameter Object",
+            debt_reduction_pct=25,
+            steps=[
+                f"1. Audit the {fo} outgoing imports in '{report.entity_name}'.",
+                "2. Group related operations into a high-level Domain Facade.",
+                "3. Delegate workflow coordination to the Facade instead of direct multi-module imports.",
+            ],
+            code_diff_preview=diff,
+        )
+
+    @classmethod
+    def _plan_for_orphan_module(cls, report: AntiPatternReport) -> RefactoringPlan:
+        diff = f"""// --- AUDIT: Orphan module '{report.entity_name}' ---
+// 0 incoming callers and 0 outgoing dependencies
+// Option A: Wire module into application router/dependency container
+// Option B: Archive / delete dead module if obsolete
+"""
+        return RefactoringPlan(
+            id=f"plan_orphan_{report.entity_id}",
+            target_id=report.entity_id,
+            target_name=report.entity_name,
+            title=f"Audit Orphan Module '{report.entity_name}'",
+            pattern="Dead Code Elimination & Pruning",
+            debt_reduction_pct=15,
+            steps=[
+                f"1. Verify if '{report.entity_name}' is invoked dynamically via reflection or plugins.",
+                "2. If obsolete, remove file and clean up repo.",
+                "3. If active, connect to consumer modules or export public API.",
             ],
             code_diff_preview=diff,
         )

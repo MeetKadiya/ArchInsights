@@ -71,9 +71,39 @@
 
             <!-- Actions -->
             <div class="nav-actions">
+                <!-- Theme Switcher Selector -->
+                <div class="theme-switcher-wrapper">
+                    <button class="btn btn-icon theme-btn" id="btnThemeToggle" title="Switch UI Theme">
+                        <ion-icon name="color-palette-outline"></ion-icon>
+                    </button>
+                    <div class="theme-dropdown hidden" id="themeDropdown">
+                        <div class="theme-dropdown-header">Visual Palette</div>
+                        <button class="theme-opt active" data-theme="emerald">
+                            <span class="theme-swatch" style="background: linear-gradient(135deg, #10b981, #00f5a0);"></span>
+                            <span>Emerald Obsidian</span>
+                        </button>
+                        <button class="theme-opt" data-theme="amber">
+                            <span class="theme-swatch" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);"></span>
+                            <span>Solar Amber</span>
+                        </button>
+                        <button class="theme-opt" data-theme="crimson">
+                            <span class="theme-swatch" style="background: linear-gradient(135deg, #f43f5e, #fb7185);"></span>
+                            <span>Crimson Cyber</span>
+                        </button>
+                        <button class="theme-opt" data-theme="nord">
+                            <span class="theme-swatch" style="background: linear-gradient(135deg, #0284c7, #38bdf8);"></span>
+                            <span>Nordic Frost</span>
+                        </button>
+                    </div>
+                </div>
+
                 <button class="btn btn-ghost" id="btnAiCopilot" title="Open AI Architectural Copilot">
                     <ion-icon name="sparkles-outline"></ion-icon>
                     AI Copilot
+                </button>
+                <button class="btn btn-secondary" id="btnScanDomainModal" title="Recon & Map External Domain Architecture">
+                    <ion-icon name="globe-outline"></ion-icon>
+                    Scan Domain
                 </button>
                 <button class="btn btn-secondary" id="btnSampleCodebase" title="Load Sample Fixture Repo">
                     <ion-icon name="cube-outline"></ion-icon>
@@ -101,9 +131,13 @@
                     <label class="control-label">Anti-Pattern Filter</label>
                     <div class="filter-pills">
                         <button class="pill active" data-filter="all">All</button>
-                        <button class="pill pill-danger" data-filter="cycle"><ion-icon name="repeat-outline"></ion-icon> Cycles <span class="badge" id="pillCycleCount">0</span></button>
-                        <button class="pill pill-warning" data-filter="god"><ion-icon name="albums-outline"></ion-icon> God Class <span class="badge" id="pillGodCount">0</span></button>
-                        <button class="pill pill-alert" data-filter="coupling"><ion-icon name="git-network-outline"></ion-icon> Coupling <span class="badge" id="pillCouplingCount">0</span></button>
+                        <button class="pill pill-critical" data-filter="critical" title="Critical Severity Smells"><ion-icon name="flame-outline"></ion-icon> Critical <span class="badge" id="pillCriticalCount">0</span></button>
+                        <button class="pill pill-danger" data-filter="cycle" title="Circular Dependency Loops"><ion-icon name="repeat-outline"></ion-icon> Cycles <span class="badge" id="pillCycleCount">0</span></button>
+                        <button class="pill pill-warning" data-filter="god" title="Overloaded God Classes"><ion-icon name="albums-outline"></ion-icon> God Class <span class="badge" id="pillGodCount">0</span></button>
+                        <button class="pill pill-alert" data-filter="coupling" title="Tight Coupling Hubs"><ion-icon name="git-network-outline"></ion-icon> Coupling <span class="badge" id="pillCouplingCount">0</span></button>
+                        <button class="pill pill-security" data-filter="security" title="Security & Exposed Ports"><ion-icon name="shield-half-outline"></ion-icon> Security <span class="badge" id="pillSecurityCount">0</span></button>
+                        <button class="pill pill-shotgun" data-filter="shotgun" title="Shotgun Surgery & High Fan-Out"><ion-icon name="flash-outline"></ion-icon> Shotgun <span class="badge" id="pillShotgunCount">0</span></button>
+                        <button class="pill pill-orphan" data-filter="orphan" title="Dead / Orphan Modules"><ion-icon name="unlink-outline"></ion-icon> Orphan <span class="badge" id="pillOrphanCount">0</span></button>
                     </div>
                 </div>
 
@@ -131,40 +165,50 @@
                     <label class="control-label">Graph Legend</label>
 
                     <div class="legend-group">
-                        <div class="legend-sub-label">Node Types</div>
+                        <div class="legend-sub-label">Code & Domain Node Types</div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background:#10b981;"></span>
+                            <span>Infrastructure / DNS</span>
+                            <span class="legend-hint">DNS, NS, MX, POPs, Policies</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background:#06b6d4;"></span>
+                            <span>Edge / CDN</span>
+                            <span class="legend-hint">Cloudflare, CloudFront</span>
+                        </div>
                         <div class="legend-item">
                             <span class="legend-dot" style="background:#6366f1;"></span>
-                            <span>Package</span>
-                            <span class="legend-hint">Folder boundary</span>
+                            <span>Gateway / Subdomain</span>
+                            <span class="legend-hint">Ingress, Nginx, APIs</span>
                         </div>
                         <div class="legend-item">
                             <span class="legend-dot" style="background:#38bdf8;"></span>
-                            <span>Module</span>
-                            <span class="legend-hint">Source file (.py / .js)</span>
+                            <span>Service / Module</span>
+                            <span class="legend-hint">Frontend & Backend Apps</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-dot" style="background:#34d399;"></span>
-                            <span>Class</span>
-                            <span class="legend-hint">Object type</span>
+                            <span class="legend-dot" style="background:#f59e0b;"></span>
+                            <span>Database / Storage</span>
+                            <span class="legend-hint">SQL, Redis, S3</span>
                         </div>
                         <div class="legend-item">
-                            <span class="legend-dot" style="background:#a78bfa;"></span>
-                            <span>Function</span>
-                            <span class="legend-hint">Function / method</span>
+                            <span class="legend-dot" style="background:#a855f7;"></span>
+                            <span>Third-Party / SaaS</span>
+                            <span class="legend-hint">Stripe, Analytics, Auth0</span>
                         </div>
                     </div>
 
                     <div class="legend-group">
-                        <div class="legend-sub-label">Code Smell Signals</div>
+                        <div class="legend-sub-label">Code Smell & Risk Signals</div>
                         <div class="legend-item">
                             <span class="legend-glow legend-glow-red"></span>
-                            <span>Circular Dep.</span>
-                            <span class="legend-hint">Red pulsing glow</span>
+                            <span>Critical / Exposed Port</span>
+                            <span class="legend-hint">Cycles / Open DB</span>
                         </div>
                         <div class="legend-item">
                             <span class="legend-glow legend-glow-amber"></span>
-                            <span>God Class</span>
-                            <span class="legend-hint">Amber halo</span>
+                            <span>God Class / Risk</span>
+                            <span class="legend-hint">Missing Security Headers</span>
                         </div>
                         <div class="legend-item">
                             <span class="legend-glow legend-glow-cyan"></span>
@@ -173,7 +217,7 @@
                         </div>
                         <div class="legend-item">
                             <span class="legend-line legend-line-red"></span>
-                            <span>Cycle Link</span>
+                            <span>Risk Link</span>
                             <span class="legend-hint">Red dashed line</span>
                         </div>
                     </div>
@@ -185,14 +229,18 @@
                 <svg id="d3Svg" width="100%" height="100%"></svg>
                 <div class="canvas-empty-state" id="emptyState">
                     <div class="empty-icon"><ion-icon name="git-network-outline"></ion-icon></div>
-                    <h2>No Codebase Analyzed Yet</h2>
-                    <p>Click <strong>Scan Repo</strong> to parse any local or GitHub repository.<br>Or click <strong>Load Sample</strong> to inspect a demo codebase.</p>
+                    <h2>No Architecture Analyzed Yet</h2>
+                    <p>Scan any <strong>Local / GitHub Codebase</strong> or inspect an <strong>External Domain</strong>.<br>Or click <strong>Load Sample</strong> to inspect a demo architecture.</p>
                     <div class="empty-actions">
                         <button class="btn btn-primary" id="btnEmptyScan">
                             <ion-icon name="scan-outline"></ion-icon>
                             Scan Repository
                         </button>
-                        <button class="btn btn-secondary" id="btnEmptySample">
+                        <button class="btn btn-secondary" id="btnEmptyDomainScan">
+                            <ion-icon name="globe-outline"></ion-icon>
+                            Scan External Domain
+                        </button>
+                        <button class="btn btn-ghost" id="btnEmptySample">
                             <ion-icon name="cube-outline"></ion-icon>
                             Load Demo Sample
                         </button>
@@ -267,6 +315,7 @@
         </main>
 
         <!-- Scan Modal -->
+        <!-- Repository Scan Modal -->
         <div class="modal-overlay" id="scanModal">
             <div class="modal-dialog glass-panel">
                 <div class="modal-header">
@@ -293,6 +342,45 @@
                     <button class="btn btn-primary" id="btnExecuteScan">
                         <span id="scanBtnSpinner" class="spinner hidden"></span>
                         <span id="scanBtnText">Start Tree-sitter Ingestion</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- External Domain Scan Modal -->
+        <div class="modal-overlay" id="domainScanModal">
+            <div class="modal-dialog glass-panel">
+                <div class="modal-header">
+                    <div style="display:flex;align-items:center;gap:0.5rem;">
+                        <ion-icon name="globe-outline" style="color:var(--color-cyan);font-size:1.3rem;"></ion-icon>
+                        <h3>Scan External Domain Architecture</h3>
+                    </div>
+                    <button class="btn-close" id="btnCloseDomainModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="inputDomainTarget">Target Domain or URL</label>
+                        <input type="text" id="inputDomainTarget" class="form-input" placeholder="e.g. example.com or https://stripe.com">
+                        <div class="form-hint">Performs non-intrusive DNS resolution, subdomain discovery, TLS certificate analysis, port/service probing, and tech stack fingerprinting.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Quick Presets</label>
+                        <div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.25rem;">
+                            <button type="button" class="btn btn-ghost btn-sm preset-domain-btn" data-domain="example.com">example.com</button>
+                            <button type="button" class="btn btn-ghost btn-sm preset-domain-btn" data-domain="cloudflare.com">cloudflare.com</button>
+                            <button type="button" class="btn btn-ghost btn-sm preset-domain-btn" data-domain="github.com">github.com</button>
+                        </div>
+                    </div>
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="checkDomainNeo4jSync">
+                        <label for="checkDomainNeo4jSync">Sync architectural topology to Neo4j graph database</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="btnCancelDomainScan">Cancel</button>
+                    <button class="btn btn-primary" id="btnExecuteDomainScan">
+                        <span id="domainScanBtnSpinner" class="spinner hidden"></span>
+                        <span id="domainScanBtnText">Start Reconnaissance & Mapping</span>
                     </button>
                 </div>
             </div>

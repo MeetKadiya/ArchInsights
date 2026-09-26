@@ -330,6 +330,24 @@ class AiCopilotEngine:
         elif node_type == "class":
             plain_role = f"A blueprint defining state and actions ({len(node_props.get('methods', []))} methods)."
             role = f"Class structure defining object properties and behaviors."
+        elif node_type == "edge":
+            plain_role = "Edge CDN & Security layer handling global traffic routing and encryption."
+            role = f"Edge network component: {node_props.get('category', 'CDN/WAF')}."
+        elif node_type == "gateway":
+            plain_role = "Ingress reverse proxy directing traffic to appropriate backend applications."
+            role = f"Network gateway: {node_props.get('server', node_name)}."
+        elif node_type == "service":
+            plain_role = f"Core application service executing business logic and serving users."
+            role = f"Application tier component ({node_props.get('framework', node_props.get('runtime', node_name))})."
+        elif node_type == "database":
+            plain_role = f"Storage/cache engine maintaining persistent state or cache data."
+            role = f"Data storage service running on port {node_props.get('port', 'unknown')}."
+        elif node_type == "thirdparty":
+            plain_role = f"External cloud API or third-party SaaS integration."
+            role = f"Third-party integration: {node_name}."
+        elif node_type == "infrastructure":
+            plain_role = f"Core domain infrastructure managing DNS records and nameserver resolution."
+            role = f"Infrastructure layer: {node_name}."
         else:
             plain_role = f"A specific function that performs a single task."
             role = f"Executable function handling logic calculation."
@@ -339,11 +357,56 @@ class AiCopilotEngine:
         easy_steps = []
 
         if matching_smells:
+            first_smell = matching_smells[0]
             has_cycle = any(s.type == "CIRCULAR_DEPENDENCY" for s in matching_smells)
             has_god = any(s.type == "GOD_CLASS" for s in matching_smells)
             has_coupling = any(s.type == "TIGHT_COUPLING" for s in matching_smells)
+            has_exposed_db = any(s.type == "EXPOSED_DATABASE_PORT" for s in matching_smells)
+            has_sec_headers = any(s.type == "MISSING_SECURITY_HEADERS" for s in matching_smells)
+            has_tls_smell = any(s.type == "INSECURE_OR_EXPIRING_TLS" for s in matching_smells)
+            has_email_smell = any(s.type == "EMAIL_SPOOFING_VULNERABILITY" for s in matching_smells)
 
-            if has_cycle:
+            if has_exposed_db:
+                diagnosis = f"Port is publicly reachable across the Internet without firewall isolation."
+                analogy = "Leaving the vault door wide open onto the sidewalk instead of inside a secure backroom."
+                why_matters = "Allows automated port scanners and brute-force tools to attack data directly."
+                recom = "Apply firewall rules (AWS Security Group / UFW) to bind service strictly to private IP or localhost."
+                pattern = "Network Boundary Isolation"
+                easy_steps = [
+                    "Block the database port from 0.0.0.0/0 in your firewall.",
+                    "Configure backend application to connect via private VPC subnet or localhost.",
+                ]
+            elif has_sec_headers:
+                diagnosis = f"HTTP reverse proxy is missing defense-in-depth security response headers."
+                analogy = "A store with security cameras installed outside but no locks on the display cases."
+                why_matters = "Leaves visitors vulnerable to clickjacking, unauthorized script execution, and MIME confusion."
+                recom = "Add HSTS, CSP, X-Frame-Options, and X-Content-Type-Options headers in your reverse proxy config."
+                pattern = "HTTP Defense-in-Depth Hardening"
+                easy_steps = [
+                    "Enable Strict-Transport-Security (HSTS) with a max-age of 31536000 seconds.",
+                    "Add X-Frame-Options: DENY and X-Content-Type-Options: nosniff headers.",
+                ]
+            elif has_tls_smell:
+                diagnosis = f"SSL/TLS certificate is expiring soon or expired, threatening service uptime."
+                analogy = "An expiring passport right before an international flight."
+                why_matters = "Browsers display aggressive warning screens, blocking 99% of visitors from accessing the site."
+                recom = "Renew certificate immediately and configure automated renewal via certbot or cloud ACME."
+                pattern = "Automated Certificate Lifecycle"
+                easy_steps = [
+                    "Trigger manual certificate renewal command.",
+                    "Verify cron or systemd timer is enabled for automated background renewal.",
+                ]
+            elif has_email_smell:
+                diagnosis = f"DNS is missing SPF or DMARC authentication records for this domain."
+                analogy = "Mailing letters without a return address verification seal - anyone can forge your letterhead."
+                why_matters = "Phishers and scammers can send fraudulent emails pretending to be your company."
+                recom = "Publish valid SPF TXT record and DMARC TXT record in your DNS zone."
+                pattern = "Email Authentication (SPF/DMARC)"
+                easy_steps = [
+                    "Add TXT record for domain with 'v=spf1 mx ~all'.",
+                    "Add TXT record for _dmarc with 'v=DMARC1; p=reject;'.",
+                ]
+            elif has_cycle:
                 diagnosis = f"This file is caught in a circular import loop. It imports another file that directly or indirectly imports it right back."
                 analogy = "Chicken and Egg: Neither file can fully start up without the other already being loaded."
                 why_matters = "Can cause random 'cannot import name' crashes during startup, breaks unit testing, and makes build tools slow."
@@ -366,14 +429,14 @@ class AiCopilotEngine:
                     "Delegate that job to the helper class instead of keeping all the code inside this one class.",
                 ]
             else:
-                diagnosis = f"This file is a traffic bottleneck: too many other files depend on it directly."
+                diagnosis = f"{first_smell.description}"
                 analogy = "Overloaded Power Strip: Too many appliances plugged into one socket."
-                why_matters = "Any change you make here will ripple across all files that use it."
-                recom = "Provide a clean interface or break this file down so callers only depend on the exact piece they need."
-                pattern = "Facade Pattern"
+                why_matters = first_smell.refactoring_suggestion
+                recom = first_smell.refactoring_suggestion
+                pattern = "Architectural Refactoring"
                 easy_steps = [
-                    "Check which functions external files actually use.",
-                    "Group related functions together and expose a simple, stable entry point.",
+                    "Review component connections in the architecture graph.",
+                    "Decouple dependencies and apply defensive configurations.",
                 ]
         elif cc > 15:
             diagnosis = f"This code works, but has deeply nested logic ({cc} decision paths in {loc} lines)."

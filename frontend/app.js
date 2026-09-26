@@ -40,9 +40,13 @@ const el = {
     cardHealthGrade: document.getElementById('cardHealthGrade'),
 
     // Pills
+    pillCriticalCount: document.getElementById('pillCriticalCount'),
     pillCycleCount: document.getElementById('pillCycleCount'),
     pillGodCount: document.getElementById('pillGodCount'),
     pillCouplingCount: document.getElementById('pillCouplingCount'),
+    pillSecurityCount: document.getElementById('pillSecurityCount'),
+    pillShotgunCount: document.getElementById('pillShotgunCount'),
+    pillOrphanCount: document.getElementById('pillOrphanCount'),
 
     // Controls
     inputSearch: document.getElementById('inputSearch'),
@@ -78,7 +82,7 @@ const el = {
     inspectorIdleMsg: document.getElementById('inspectorIdleMsg'),
     inspectorContent: document.getElementById('inspectorContent'),
 
-    // Modal
+    // Modals
     btnSample: document.getElementById('btnSampleCodebase'),
     btnScanModal: document.getElementById('btnScanModal'),
     scanModal: document.getElementById('scanModal'),
@@ -91,19 +95,50 @@ const el = {
     scanBtnSpinner: document.getElementById('scanBtnSpinner'),
     scanBtnText: document.getElementById('scanBtnText'),
 
+    // Domain Scan Modal
+    btnScanDomainModal: document.getElementById('btnScanDomainModal'),
+    domainScanModal: document.getElementById('domainScanModal'),
+    btnCloseDomainModal: document.getElementById('btnCloseDomainModal'),
+    btnCancelDomainScan: document.getElementById('btnCancelDomainScan'),
+    btnExecuteDomainScan: document.getElementById('btnExecuteDomainScan'),
+    inputDomainTarget: document.getElementById('inputDomainTarget'),
+    checkDomainNeo4jSync: document.getElementById('checkDomainNeo4jSync'),
+    domainScanBtnSpinner: document.getElementById('domainScanBtnSpinner'),
+    domainScanBtnText: document.getElementById('domainScanBtnText'),
+
     // Empty state buttons
     btnEmptyScan: document.getElementById('btnEmptyScan'),
+    btnEmptyDomainScan: document.getElementById('btnEmptyDomainScan'),
     btnEmptySample: document.getElementById('btnEmptySample'),
 };
 
 // ===================== Init =====================
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     initD3();
     bindEvents();
     bindCopilotTabs();
     bindInfoTips();
     checkHealthAndAutoLoad();
 });
+
+// ===================== Theme System =====================
+function initTheme() {
+    const savedTheme = localStorage.getItem('archinsights_theme') || 'emerald';
+    applyTheme(savedTheme);
+}
+
+function applyTheme(theme) {
+    document.body.classList.remove('theme-emerald', 'theme-amber', 'theme-crimson', 'theme-nord');
+    document.body.classList.add(`theme-${theme}`);
+    localStorage.setItem('archinsights_theme', theme);
+    document.querySelectorAll('.theme-opt').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === theme);
+    });
+    if (state.g) {
+        state.g.selectAll('.nodes g circle').attr('fill', d => getNodeColor(d));
+    }
+}
 
 // Setup D3 Canvas, SVG Defs, and Zoom
 function initD3() {
@@ -141,6 +176,28 @@ function initD3() {
 
 // ===================== Event Binding =====================
 function bindEvents() {
+    // Theme toggle & palette selection
+    const btnThemeToggle = document.getElementById('btnThemeToggle');
+    const themeDropdown = document.getElementById('themeDropdown');
+    if (btnThemeToggle && themeDropdown) {
+        btnThemeToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            themeDropdown.classList.toggle('hidden');
+        });
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.theme-switcher-wrapper')) {
+                themeDropdown.classList.add('hidden');
+            }
+        });
+        document.querySelectorAll('.theme-opt').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const selected = btn.dataset.theme;
+                applyTheme(selected);
+                themeDropdown.classList.add('hidden');
+            });
+        });
+    }
+
     // AI Copilot toggle
     el.btnAiCopilot.addEventListener('click', () => {
         const open = el.aiCopilotPanel.classList.toggle('open');
@@ -183,7 +240,7 @@ function bindEvents() {
         });
     });
 
-    // Modals
+    // Codebase Scan Modal
     el.btnScanModal.addEventListener('click', () => el.scanModal.classList.add('active'));
     el.btnCloseModal.addEventListener('click', () => el.scanModal.classList.remove('active'));
     el.btnCancelScan.addEventListener('click', () => el.scanModal.classList.remove('active'));
@@ -196,8 +253,37 @@ function bindEvents() {
         triggerScan(path, name, syncNeo4j);
     });
 
+    // Domain Scan Modal
+    if (el.btnScanDomainModal) {
+        el.btnScanDomainModal.addEventListener('click', () => el.domainScanModal.classList.add('active'));
+    }
+    if (el.btnCloseDomainModal) {
+        el.btnCloseDomainModal.addEventListener('click', () => el.domainScanModal.classList.remove('active'));
+    }
+    if (el.btnCancelDomainScan) {
+        el.btnCancelDomainScan.addEventListener('click', () => el.domainScanModal.classList.remove('active'));
+    }
+    if (el.btnExecuteDomainScan) {
+        el.btnExecuteDomainScan.addEventListener('click', () => {
+            const domain = el.inputDomainTarget.value.trim();
+            const syncNeo4j = el.checkDomainNeo4jSync ? el.checkDomainNeo4jSync.checked : false;
+            if (!domain) { alert('Please enter a domain or URL to scan.'); return; }
+            triggerDomainScan(domain, syncNeo4j);
+        });
+    }
+
+    // Quick Domain Presets
+    document.querySelectorAll('.preset-domain-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            if (el.inputDomainTarget) {
+                el.inputDomainTarget.value = e.currentTarget.dataset.domain;
+            }
+        });
+    });
+
     el.btnSample.addEventListener('click', () => triggerScan('tests/sample_codebase', 'SampleArchInsights', false));
     if (el.btnEmptyScan) el.btnEmptyScan.addEventListener('click', () => el.scanModal.classList.add('active'));
+    if (el.btnEmptyDomainScan) el.btnEmptyDomainScan.addEventListener('click', () => el.domainScanModal.classList.add('active'));
     if (el.btnEmptySample) el.btnEmptySample.addEventListener('click', () => triggerScan('tests/sample_codebase', 'SampleArchInsights', false));
 }
 
@@ -287,6 +373,41 @@ async function triggerScan(repoPath, repoName, syncNeo4j = true) {
     }
 }
 
+// ===================== Domain Scan =====================
+async function triggerDomainScan(domain, syncNeo4j = false) {
+    if (el.domainScanBtnSpinner) el.domainScanBtnSpinner.classList.remove('hidden');
+    if (el.domainScanBtnText) el.domainScanBtnText.textContent = 'Recon & Fingerprinting...';
+    if (el.btnExecuteDomainScan) el.btnExecuteDomainScan.disabled = true;
+
+    showToast(`Probing ${domain} (DNS, SSL, Ports, Tech Stack)...`);
+
+    try {
+        const res = await fetch('/api/domain/scan', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ domain: domain, sync_to_neo4j: syncNeo4j }),
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            alert(`Domain scan failed: ${err.detail || 'Unknown error'}`);
+            return;
+        }
+
+        const data = await res.json();
+        if (el.domainScanModal) el.domainScanModal.classList.remove('active');
+        showToast(`Discovered ${data.technologies_detected.length} techs & ${data.total_nodes} nodes — loading topology...`);
+        await refreshAllData();
+        showToast('Domain architecture mapped!', 2500);
+    } catch (e) {
+        alert(`Domain scan error: ${e.message}`);
+    } finally {
+        if (el.domainScanBtnSpinner) el.domainScanBtnSpinner.classList.add('hidden');
+        if (el.domainScanBtnText) el.domainScanBtnText.textContent = 'Start Reconnaissance & Mapping';
+        if (el.btnExecuteDomainScan) el.btnExecuteDomainScan.disabled = false;
+    }
+}
+
 // ===================== Refresh All Data =====================
 async function refreshAllData() {
     try {
@@ -344,13 +465,24 @@ function updateMetricsRibbon() {
     el.valAvgMI.textContent = m.average_maintainability_index;
     el.valSmellsCount.textContent = state.antipatterns.length;
 
-    const cycles   = state.antipatterns.filter(a => a.type === 'CIRCULAR_DEPENDENCY').length;
-    const gods     = state.antipatterns.filter(a => a.type === 'GOD_CLASS').length;
-    const coupling = state.antipatterns.filter(a => a.type === 'TIGHT_COUPLING').length;
+    const criticals = state.antipatterns.filter(a => a.severity === 'CRITICAL').length;
+    const cycles    = state.antipatterns.filter(a => a.type === 'CIRCULAR_DEPENDENCY').length;
+    const gods      = state.antipatterns.filter(a => a.type === 'GOD_CLASS').length;
+    const coupling  = state.antipatterns.filter(a => a.type === 'TIGHT_COUPLING').length;
+    const security  = state.antipatterns.filter(a => [
+        'EXPOSED_DATABASE_PORT', 'MISSING_SECURITY_HEADERS', 'INSECURE_OR_EXPIRING_TLS',
+        'EMAIL_SPOOFING_VULNERABILITY', 'INFORMATION_DISCLOSURE', 'SINGLE_POINT_OF_FAILURE'
+    ].includes(a.type)).length;
+    const shotgun   = state.antipatterns.filter(a => a.type === 'SHOTGUN_SURGERY').length;
+    const orphans   = state.antipatterns.filter(a => a.type === 'ORPHAN_MODULE').length;
 
-    el.pillCycleCount.textContent   = cycles;
-    el.pillGodCount.textContent     = gods;
-    el.pillCouplingCount.textContent = coupling;
+    if (el.pillCriticalCount) el.pillCriticalCount.textContent = criticals;
+    if (el.pillCycleCount)    el.pillCycleCount.textContent    = cycles;
+    if (el.pillGodCount)      el.pillGodCount.textContent      = gods;
+    if (el.pillCouplingCount) el.pillCouplingCount.textContent = coupling;
+    if (el.pillSecurityCount) el.pillSecurityCount.textContent = security;
+    if (el.pillShotgunCount)  el.pillShotgunCount.textContent  = shotgun;
+    if (el.pillOrphanCount)   el.pillOrphanCount.textContent   = orphans;
 }
 
 function debtScoreToGrade(score) {
@@ -753,14 +885,44 @@ function getNodeRadius(d) {
     return Math.max(9, Math.min(30, (d.complexity || 1) * 2.2 + 6));
 }
 
+function getActiveThemePalette() {
+    if (document.body.classList.contains('theme-amber')) {
+        return {
+            Package: '#f59e0b', Module: '#fbbf24', Class: '#fcd34d', Function: '#d97706',
+            Edge: '#fbbf24', Gateway: '#f59e0b', Service: '#38bdf8',
+            Infrastructure: '#b45309', Database: '#ea580c', ThirdParty: '#c084fc'
+        };
+    }
+    if (document.body.classList.contains('theme-crimson')) {
+        return {
+            Package: '#f43f5e', Module: '#fb7185', Class: '#fda4af', Function: '#e11d48',
+            Edge: '#fb7185', Gateway: '#f43f5e', Service: '#38bdf8',
+            Infrastructure: '#be123c', Database: '#f59e0b', ThirdParty: '#e879f9'
+        };
+    }
+    if (document.body.classList.contains('theme-nord')) {
+        return {
+            Package: '#0284c7', Module: '#38bdf8', Class: '#7dd3fc', Function: '#0369a1',
+            Edge: '#38bdf8', Gateway: '#0284c7', Service: '#0ea5e9',
+            Infrastructure: '#075985', Database: '#f59e0b', ThirdParty: '#818cf8'
+        };
+    }
+    // Default: theme-emerald
+    return {
+        Package: '#10b981', Module: '#00f5a0', Class: '#06d6a0', Function: '#34d399',
+        Edge: '#00f5a0', Gateway: '#10b981', Service: '#38bdf8',
+        Infrastructure: '#059669', Database: '#f59e0b', ThirdParty: '#a855f7'
+    };
+}
+
 function getNodeColor(d) {
     if (d._isCycle)    return '#ef4444';
     if (d._isGod)      return '#f59e0b';
     if (d._isCoupling) return '#06b6d4';
-    const typeColors = { Package: '#6366f1', Module: '#38bdf8', Class: '#34d399', Function: '#a78bfa' };
-    if (typeColors[d.label]) return typeColors[d.label];
+    const palette = getActiveThemePalette();
+    if (palette[d.label]) return palette[d.label];
     const mi = d.maintainability || 100;
-    if (mi >= 70) return '#10b981';
+    if (mi >= 70) return palette.Infrastructure || '#10b981';
     if (mi >= 50) return '#f59e0b';
     return '#ef4444';
 }
@@ -768,17 +930,28 @@ function getNodeColor(d) {
 // ===================== Tooltip =====================
 function showNodeTooltip(event, d) {
     const smells = state.antipatterns.filter(a => a.entity_id === d.id);
+    const smellBadgeClass = (type) => {
+        if (type === 'CIRCULAR_DEPENDENCY') return 'smell-cycle';
+        if (type === 'GOD_CLASS') return 'smell-god';
+        if (type === 'TIGHT_COUPLING') return 'smell-coupling';
+        if (type === 'SHOTGUN_SURGERY') return 'smell-shotgun';
+        if (type === 'ORPHAN_MODULE') return 'smell-orphan';
+        if (['EXPOSED_DATABASE_PORT', 'INSECURE_OR_EXPIRING_TLS'].includes(type)) return 'smell-critical';
+        return 'smell-security';
+    };
     const smellBadges = smells.map(s => {
-        const cls = s.type === 'CIRCULAR_DEPENDENCY' ? 'smell-cycle' : s.type === 'GOD_CLASS' ? 'smell-god' : 'smell-coupling';
-        return `<span class="tooltip-smell ${cls}">${s.type.replace('_', ' ')}</span>`;
+        const cls = smellBadgeClass(s.type);
+        return `<span class="tooltip-smell ${cls}">${s.type.replace(/_/g, ' ')}</span>`;
     }).join(' ');
 
     el.tooltip.innerHTML = `
         <div class="tooltip-title">${escapeHtml(d.name)}</div>
         <div class="tooltip-row"><span class="tooltip-key">Type</span><span class="tooltip-val">${d.label}</span></div>
-        <div class="tooltip-row"><span class="tooltip-key">LOC</span><span class="tooltip-val">${d.loc ?? '--'}</span></div>
-        <div class="tooltip-row"><span class="tooltip-key">CC</span><span class="tooltip-val">${d.complexity ?? '--'}</span></div>
-        <div class="tooltip-row"><span class="tooltip-key">MI</span><span class="tooltip-val">${d.maintainability ?? '--'}</span></div>
+        ${d.tier ? `<div class="tooltip-row"><span class="tooltip-key">Tier</span><span class="tooltip-val">${escapeHtml(d.tier)}</span></div>` : ''}
+        ${d.category ? `<div class="tooltip-row"><span class="tooltip-key">Category</span><span class="tooltip-val">${escapeHtml(d.category)}</span></div>` : ''}
+        <div class="tooltip-row"><span class="tooltip-key">${d.tier ? 'Health Score' : 'LOC'}</span><span class="tooltip-val">${d.loc ?? '--'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-key">${d.tier ? 'Risk/Complexity' : 'CC'}</span><span class="tooltip-val">${d.complexity ?? '--'}</span></div>
+        <div class="tooltip-row"><span class="tooltip-key">${d.tier ? 'Resilience Index' : 'MI'}</span><span class="tooltip-val">${d.maintainability ?? '--'}</span></div>
         ${smellBadges ? `<div style="margin-top:5px;">${smellBadges}</div>` : ''}
         ${smells.length === 0 ? '<div style="margin-top:5px;font-size:0.68rem;color:#64748b;">Click to open AI Inspector</div>' : ''}
     `;
@@ -820,22 +993,33 @@ function toggleHotspotFocus() {
 function applyFilters() {
     if (!state.g) return;
 
+    const criticalIds = new Set(state.antipatterns.filter(a => a.severity === 'CRITICAL').map(a => a.entity_id));
     const cycleIds    = new Set(state.antipatterns.filter(a => a.type === 'CIRCULAR_DEPENDENCY').map(a => a.entity_id));
     const godIds      = new Set(state.antipatterns.filter(a => a.type === 'GOD_CLASS').map(a => a.entity_id));
     const couplingIds = new Set(state.antipatterns.filter(a => a.type === 'TIGHT_COUPLING').map(a => a.entity_id));
+    const securityIds = new Set(state.antipatterns.filter(a => [
+        'EXPOSED_DATABASE_PORT', 'MISSING_SECURITY_HEADERS', 'INSECURE_OR_EXPIRING_TLS',
+        'EMAIL_SPOOFING_VULNERABILITY', 'INFORMATION_DISCLOSURE', 'SINGLE_POINT_OF_FAILURE'
+    ].includes(a.type)).map(a => a.entity_id));
+    const shotgunIds  = new Set(state.antipatterns.filter(a => a.type === 'SHOTGUN_SURGERY').map(a => a.entity_id));
+    const orphanIds   = new Set(state.antipatterns.filter(a => a.type === 'ORPHAN_MODULE').map(a => a.entity_id));
 
     state.g.selectAll('.node').style('opacity', d => {
         const matchSearch = !state.searchQuery || d.name.toLowerCase().includes(state.searchQuery);
         if (!matchSearch) return 0.12;
 
         if (state.hotspotMode) {
-            const isHotspot = d.is_in_cycle || cycleIds.has(d.id) || godIds.has(d.id) || couplingIds.has(d.id);
+            const isHotspot = d.is_in_cycle || criticalIds.has(d.id) || cycleIds.has(d.id) || godIds.has(d.id) || couplingIds.has(d.id) || securityIds.has(d.id) || shotgunIds.has(d.id) || orphanIds.has(d.id);
             if (!isHotspot) return 0.1;
         }
 
+        if (state.activeFilter === 'critical') return criticalIds.has(d.id) ? 1.0 : 0.12;
         if (state.activeFilter === 'cycle')    return (d.is_in_cycle || cycleIds.has(d.id)) ? 1.0 : 0.12;
         if (state.activeFilter === 'god')      return godIds.has(d.id)      ? 1.0 : 0.12;
         if (state.activeFilter === 'coupling') return couplingIds.has(d.id) ? 1.0 : 0.12;
+        if (state.activeFilter === 'security') return securityIds.has(d.id) ? 1.0 : 0.12;
+        if (state.activeFilter === 'shotgun')  return shotgunIds.has(d.id)  ? 1.0 : 0.12;
+        if (state.activeFilter === 'orphan')   return orphanIds.has(d.id)   ? 1.0 : 0.12;
         return 1.0;
     });
 
