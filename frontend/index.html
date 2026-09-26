@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArchInsights — Architectural Debt Visualizer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- D3.js v7 CDN -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- Ionicons CDN -->
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Top Navbar -->
+        <header class="navbar">
+            <div class="brand">
+                <div class="logo-icon">
+                    <ion-icon name="git-network-outline"></ion-icon>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-title">ArchInsights</span>
+                    <span class="brand-subtitle">AI-Powered Architectural Debt Visualizer</span>
+                </div>
+            </div>
+
+            <!-- Global Metrics Ribbon -->
+            <div class="metrics-ribbon" id="metricsRibbon">
+                <!-- Health Grade Badge -->
+                <div class="metric-card health-grade-card" id="cardHealthGrade" title="Architectural health grade based on debt score and code smells">
+                    <span class="health-grade-letter" id="valHealthGrade">--</span>
+                    <div class="metric-card-info">
+                        <span class="metric-label">Health Grade</span>
+                        <span class="metric-val" id="valDebtScore">--<span class="metric-unit">/100</span></span>
+                    </div>
+                </div>
+                <div class="metric-divider"></div>
+                <div class="metric-card" title="Total source modules parsed by Tree-sitter">
+                    <span class="metric-icon"><ion-icon name="layers-outline"></ion-icon></span>
+                    <div class="metric-card-info">
+                        <span class="metric-label">Modules</span>
+                        <span class="metric-val" id="valTotalModules">0</span>
+                    </div>
+                </div>
+                <div class="metric-card" title="Cyclomatic Complexity (CC) measures the number of independent code paths. Lower is better — aim for CC < 10 per function.">
+                    <span class="metric-icon"><ion-icon name="git-branch-outline"></ion-icon></span>
+                    <div class="metric-card-info">
+                        <span class="metric-label">Avg CC <span class="info-tip" data-tip="Cyclomatic Complexity: number of independent code paths. Aim for &lt; 10.">?</span></span>
+                        <span class="metric-val" id="valAvgComplexity">--</span>
+                    </div>
+                </div>
+                <div class="metric-card" title="Maintainability Index (0–100): how easy is the code to understand and maintain? Higher is better — aim for MI > 65.">
+                    <span class="metric-icon"><ion-icon name="speedometer-outline"></ion-icon></span>
+                    <div class="metric-card-info">
+                        <span class="metric-label">Avg MI <span class="info-tip" data-tip="Maintainability Index: 0–100 score of code health. Aim for &gt; 65.">?</span></span>
+                        <span class="metric-val" id="valAvgMI">--</span>
+                    </div>
+                </div>
+                <div class="metric-card" id="cardSmells" title="Architectural code smells detected: circular dependencies, God Classes, tight coupling">
+                    <span class="metric-icon"><ion-icon name="alert-circle-outline"></ion-icon></span>
+                    <div class="metric-card-info">
+                        <span class="metric-label">Anti-Patterns</span>
+                        <span class="metric-val text-red" id="valSmellsCount">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="nav-actions">
+                <button class="btn btn-ghost" id="btnAiCopilot" title="Open AI Architectural Copilot">
+                    <ion-icon name="sparkles-outline"></ion-icon>
+                    AI Copilot
+                </button>
+                <button class="btn btn-secondary" id="btnSampleCodebase" title="Load Sample Fixture Repo">
+                    <ion-icon name="cube-outline"></ion-icon>
+                    Load Sample
+                </button>
+                <button class="btn btn-primary" id="btnScanModal">
+                    <ion-icon name="scan-outline"></ion-icon>
+                    Scan Repo
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <!-- Left Toolbar & Filters -->
+            <aside class="left-controls glass-panel">
+                <div class="control-section">
+                    <label class="control-label">Search Module</label>
+                    <div class="search-box">
+                        <input type="text" id="inputSearch" placeholder="Filter module name..." autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <label class="control-label">Anti-Pattern Filter</label>
+                    <div class="filter-pills">
+                        <button class="pill active" data-filter="all">All</button>
+                        <button class="pill pill-danger" data-filter="cycle"><ion-icon name="repeat-outline"></ion-icon> Cycles <span class="badge" id="pillCycleCount">0</span></button>
+                        <button class="pill pill-warning" data-filter="god"><ion-icon name="albums-outline"></ion-icon> God Class <span class="badge" id="pillGodCount">0</span></button>
+                        <button class="pill pill-alert" data-filter="coupling"><ion-icon name="git-network-outline"></ion-icon> Coupling <span class="badge" id="pillCouplingCount">0</span></button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <label class="control-label">Node Size By</label>
+                    <select id="selectSizeMode" class="control-select">
+                        <option value="complexity">Cyclomatic Complexity</option>
+                        <option value="loc">Lines of Code (LOC)</option>
+                        <option value="uniform">Uniform Size</option>
+                    </select>
+                </div>
+
+                <div class="control-section">
+                    <label class="control-label">Graph Controls</label>
+                    <div class="btn-group">
+                        <button class="btn btn-icon" id="btnZoomIn" title="Zoom In"><ion-icon name="add-outline"></ion-icon></button>
+                        <button class="btn btn-icon" id="btnZoomOut" title="Zoom Out"><ion-icon name="remove-outline"></ion-icon></button>
+                        <button class="btn btn-icon" id="btnResetView" title="Reset View"><ion-icon name="scan-outline"></ion-icon></button>
+                        <button class="btn btn-icon btn-focus-hotspots" id="btnFocusHotspots" title="Highlight Smell Hotspots"><ion-icon name="locate-outline"></ion-icon></button>
+                    </div>
+                </div>
+
+                <!-- Visual Legend -->
+                <div class="control-section legend-section">
+                    <label class="control-label">Graph Legend</label>
+
+                    <div class="legend-group">
+                        <div class="legend-sub-label">Node Types</div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background:#6366f1;"></span>
+                            <span>Package</span>
+                            <span class="legend-hint">Folder boundary</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background:#38bdf8;"></span>
+                            <span>Module</span>
+                            <span class="legend-hint">Source file (.py / .js)</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background:#34d399;"></span>
+                            <span>Class</span>
+                            <span class="legend-hint">Object type</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-dot" style="background:#a78bfa;"></span>
+                            <span>Function</span>
+                            <span class="legend-hint">Function / method</span>
+                        </div>
+                    </div>
+
+                    <div class="legend-group">
+                        <div class="legend-sub-label">Code Smell Signals</div>
+                        <div class="legend-item">
+                            <span class="legend-glow legend-glow-red"></span>
+                            <span>Circular Dep.</span>
+                            <span class="legend-hint">Red pulsing glow</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-glow legend-glow-amber"></span>
+                            <span>God Class</span>
+                            <span class="legend-hint">Amber halo</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-glow legend-glow-cyan"></span>
+                            <span>Tight Coupling</span>
+                            <span class="legend-hint">Cyan hub glow</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-line legend-line-red"></span>
+                            <span>Cycle Link</span>
+                            <span class="legend-hint">Red dashed line</span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Visualization Canvas -->
+            <div class="graph-canvas-container" id="canvasContainer">
+                <svg id="d3Svg" width="100%" height="100%"></svg>
+                <div class="canvas-empty-state" id="emptyState">
+                    <div class="empty-icon"><ion-icon name="git-network-outline"></ion-icon></div>
+                    <h2>No Codebase Analyzed Yet</h2>
+                    <p>Click <strong>Scan Repo</strong> to parse any local or GitHub repository.<br>Or click <strong>Load Sample</strong> to inspect a demo codebase.</p>
+                    <div class="empty-actions">
+                        <button class="btn btn-primary" id="btnEmptyScan">
+                            <ion-icon name="scan-outline"></ion-icon>
+                            Scan Repository
+                        </button>
+                        <button class="btn btn-secondary" id="btnEmptySample">
+                            <ion-icon name="cube-outline"></ion-icon>
+                            Load Demo Sample
+                        </button>
+                    </div>
+                </div>
+                <!-- Node Tooltip -->
+                <div class="tooltip" id="graphTooltip"></div>
+            </div>
+
+            <!-- AI Copilot Panel (right) -->
+            <aside class="right-drawer glass-panel" id="aiCopilotPanel">
+                <div class="drawer-header">
+                    <div class="drawer-header-left">
+                        <span class="ai-badge"><ion-icon name="sparkles"></ion-icon> AI</span>
+                        <h3 id="copilotPanelTitle">Architectural Copilot</h3>
+                    </div>
+                    <div class="drawer-tabs" id="copilotTabs">
+                        <button class="drawer-tab active" data-tab="summary"><ion-icon name="document-text-outline"></ion-icon> Summary</button>
+                        <button class="drawer-tab" data-tab="actions"><ion-icon name="list-outline"></ion-icon> Action Plan</button>
+                        <button class="drawer-tab" data-tab="inspector"><ion-icon name="search-outline"></ion-icon> Inspector</button>
+                    </div>
+                    <button class="btn-close" id="btnCloseCopilot">&times;</button>
+                </div>
+
+                <div class="drawer-content" id="copilotBody">
+                    <!-- Tab: Executive Summary -->
+                    <div class="tab-pane active" id="tabSummary">
+                        <div class="copilot-idle" id="copilotIdleMsg">
+                            <div class="copilot-idle-icon"><ion-icon name="analytics-outline"></ion-icon></div>
+                            <p>Scan a repository to generate an AI architectural assessment.</p>
+                        </div>
+                        <div class="copilot-summary-content hidden" id="copilotSummaryContent">
+                            <div class="grade-hero" id="gradeHero">
+                                <div class="grade-circle" id="gradeCircle"><span id="gradeLetterLarge">--</span></div>
+                                <div class="grade-info">
+                                    <div class="grade-headline" id="gradeHeadline">Analyzing...</div>
+                                    <div class="grade-repo" id="gradeRepo"></div>
+                                </div>
+                            </div>
+                            <div class="ai-simple-breakdown" id="aiSimpleBreakdown"></div>
+                            <div class="ai-narrative" id="aiNarrative"></div>
+                            <div class="ai-section">
+                                <div class="ai-section-title"><ion-icon name="checkmark-circle-outline" style="color:var(--color-green);"></ion-icon> Key Strengths</div>
+                                <ul class="ai-list ai-list-strengths" id="aiStrengths"></ul>
+                            </div>
+                            <div class="ai-section">
+                                <div class="ai-section-title"><ion-icon name="warning-outline" style="color:var(--color-red);"></ion-icon> Critical Risks</div>
+                                <ul class="ai-list ai-list-risks" id="aiRisks"></ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab: Prioritized Action Plan -->
+                    <div class="tab-pane hidden" id="tabActions">
+                        <div class="copilot-idle" id="actionsIdleMsg">
+                            <div class="copilot-idle-icon"><ion-icon name="clipboard-outline"></ion-icon></div>
+                            <p>Scan a repository to generate a prioritized refactoring action plan.</p>
+                        </div>
+                        <div class="action-plan-list hidden" id="actionPlanList"></div>
+                    </div>
+
+                    <!-- Tab: Node Inspector -->
+                    <div class="tab-pane hidden" id="tabInspector">
+                        <div class="copilot-idle" id="inspectorIdleMsg">
+                            <div class="copilot-idle-icon"><ion-icon name="search-outline"></ion-icon></div>
+                            <p>Click any node in the graph to inspect it with AI-powered diagnosis and refactoring suggestions.</p>
+                        </div>
+                        <div class="inspector-content hidden" id="inspectorContent"></div>
+                    </div>
+                </div>
+            </aside>
+        </main>
+
+        <!-- Scan Modal -->
+        <div class="modal-overlay" id="scanModal">
+            <div class="modal-dialog glass-panel">
+                <div class="modal-header">
+                    <h3>Scan Target Codebase</h3>
+                    <button class="btn-close" id="btnCloseModal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="inputRepoPath">Local Path or GitHub Repository URL</label>
+                        <input type="text" id="inputRepoPath" class="form-input" placeholder="e.g. https://github.com/pallets/flask or I:/ArchInsights">
+                        <div class="form-hint">Supports any public GitHub URL — ArchInsights streams and scans directly in memory without cloning to disk.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="inputRepoName">Repository Name (Optional)</label>
+                        <input type="text" id="inputRepoName" class="form-input" placeholder="e.g. MyProject">
+                    </div>
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="checkNeo4jSync" checked>
+                        <label for="checkNeo4jSync">Sync graph to Neo4j database (if running)</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" id="btnCancelScan">Cancel</button>
+                    <button class="btn btn-primary" id="btnExecuteScan">
+                        <span id="scanBtnSpinner" class="spinner hidden"></span>
+                        <span id="scanBtnText">Start Tree-sitter Ingestion</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Global Tooltip for metric explanations -->
+        <div class="metric-tooltip" id="metricTooltip"></div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
